@@ -1,61 +1,71 @@
 'use strict'
 
-const { graphql, buildSchema } = require('graphql')
+const express = require('express')
+const graphqlHTTP = require('express-graphql')
+const {
+  GraphQLSchema,
+  GraphQLObjectType,
+  GraphQLString,
+  GraphQLInt,
+  GraphQLBoolean,
+  GraphQLID
+} = require('graphql')
 
-const schema = buildSchema(`
-  type Video {
-    id: ID,
-    title: String,
-    duration: Int,
-    watched: Boolean
-  }
+const getVideoById = require('./src/data')
 
-  type Query {
-    video: Video
-    videos: [Video]
-  }
+const PORT = process.env.PORT || 3000
 
-  type Schema {
-    query: Query
-  }
-`)
+const server = express()
 
-const videoA = {
-  id: 'a',
-  title: 'Create a GraphQL Schema',
-  duration: 120,
-  watched: true
-}
-
-const videoB = {
-  id: 'b',
-  title: 'Ember.js CLI',
-  duration: 240,
-  watched: false
-}
-const videos = [videoA, videoB]
-
-const resolvers = {
-  video: () => ({
-    id: '1',
-    title: 'Foo',
-    duration: 180,
-    watched: true
-  }),
-  videos: () => videos
-}
-
-const query = `
-  query myFirstQuery {
-    videos {
-      id,
-      title,
-      duration,
-      watched
+const videoType = new GraphQLObjectType({
+  name: 'Video',
+  description: 'A video on Egghead.io',
+  fields: {
+    id: {
+      type: GraphQLID,
+      description: 'The ID of the video'
+    },
+    title: {
+      type: GraphQLString,
+      description: 'The title of the video'
+    },
+    duration: {
+      type: GraphQLInt,
+      description: 'The duration of the video(in seconds)'
+    },
+    watched: {
+      type: GraphQLBoolean,
+      descrption: 'Whether or not the video has been watched'
     }
   }
-`
+})
 
-graphql(schema, query, resolvers)
-  .then(results => console.log(results))
-  .catch(results => console.log(results))
+const queryType = new GraphQLObjectType({
+  name: 'QueryType',
+  desscription: 'The root query type',
+  fields: {
+    video: {
+      type: videoType,
+      args: {
+        id: {
+          type: GraphQLID,
+          descrption: 'The ID of the video'
+        }
+      },
+      resolve: (_, args) => {
+        return getVideoById(args.id)
+      }
+    }
+  }
+})
+
+const schema = new GraphQLSchema({
+  query: queryType
+})
+
+server.use('/graphql', graphqlHTTP({
+  schema,
+  graphiql: true
+}))
+
+server.listen(PORT, () => console.log(`Listening on port ${PORT}`))
