@@ -5,6 +5,7 @@ const graphqlHTTP = require('express-graphql')
 const {
   GraphQLSchema,
   GraphQLObjectType,
+  GraphQLInputObjectType,
   GraphQLList,
   GraphQLNonNull,
   GraphQLString,
@@ -12,8 +13,10 @@ const {
   GraphQLBoolean,
   GraphQLID
 } = require('graphql')
+const { globalIdField } = require('graphql-relay')
+const { nodeInterface, nodeField } = require('./src/node')
 
-const utils = require('./src/data')
+const { getVideos, createVideo, getVideoById } = require('./src/data')
 
 const PORT = process.env.PORT || 3000
 
@@ -23,10 +26,7 @@ const videoType = new GraphQLObjectType({
   name: 'Video',
   description: 'A video on Egghead.io',
   fields: {
-    id: {
-      type: GraphQLID,
-      description: 'The ID of the video'
-    },
+    id: globalIdField(),
     title: {
       type: GraphQLString,
       description: 'The title of the video'
@@ -35,20 +35,24 @@ const videoType = new GraphQLObjectType({
       type: GraphQLInt,
       description: 'The duration of the video(in seconds)'
     },
-    watched: {
+    released: {
       type: GraphQLBoolean,
-      description: 'Whether or not the video has been watched'
+      description: 'Whether or not the video has been released'
     }
-  }
+  },
+  interfaces: [nodeInterface]
 })
+
+exports.videoType = videoType
 
 const queryType = new GraphQLObjectType({
   name: 'QueryType',
-  desscription: 'The root query type',
+  description: 'The root query type',
   fields: {
+    node: nodeField,
     videos: {
       type: new GraphQLList(videoType),
-      resolve: utils.getVideos
+      resolve: getVideos
     },
     video: {
       type: videoType,
@@ -59,8 +63,26 @@ const queryType = new GraphQLObjectType({
         }
       },
       resolve: (_, args) => {
-        return utils.getVideoById(args.id)
+        return getVideoById(args.id)
       }
+    }
+  }
+})
+
+const videoInputType = new GraphQLInputObjectType({
+  name: 'VideoInput',
+  fields: {
+    title: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'The title of the video'
+    },
+    duration: {
+      type: new GraphQLNonNull(GraphQLInt),
+      descrption: 'The duration of the video(in seconds)'
+    },
+    realeased: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Wether or not the video is released'
     }
   }
 })
@@ -72,20 +94,11 @@ const mutationType = new GraphQLObjectType({
     createVideo: {
       type: videoType,
       args: {
-        title: {
-          type: new GraphQLNonNull(GraphQLString),
-          description: 'The title of the video'
-        },
-        duration: {
-          type: new GraphQLNonNull(GraphQLInt),
-          descrption: 'The duration of the video(in seconds)'
-        },
-        realeased: {
-          type: new GraphQLNonNull(GraphQLBoolean),
-          description: 'Wether or not the video is released'
+        video: {
+          type: new GraphQLNonNull(videoInputType)
         }
       },
-      resolve: (_, args) => utils.createVideo(args)
+      resolve: (_, args) => createVideo(args.video)
     }
   }
 })
