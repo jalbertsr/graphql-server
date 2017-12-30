@@ -8,18 +8,21 @@ const {
   GraphQLInputObjectType,
   GraphQLList,
   GraphQLNonNull,
-  GraphQLString,
-  GraphQLInt,
-  GraphQLBoolean,
-  GraphQLID
+  GraphQLID,
+  GraphQLString, GraphQLInt,
+  GraphQLBoolean
 } = require('graphql')
-const { globalIdField } = require('graphql-relay')
+const { getVideoById, getVideos, createVideo } = require('./src/data')
+const {
+  globalIdField,
+  connectionDefinitions,
+  connectionFromPromisedArray,
+  connectionArgs,
+  mutationWithClientMutationId
+} = require('graphql-relay')
 const { nodeInterface, nodeField } = require('./src/node')
 
-const { getVideos, createVideo, getVideoById } = require('./src/data')
-
 const PORT = process.env.PORT || 3000
-
 const server = express()
 
 const videoType = new GraphQLObjectType({
@@ -29,77 +32,93 @@ const videoType = new GraphQLObjectType({
     id: globalIdField(),
     title: {
       type: GraphQLString,
-      description: 'The title of the video'
+      description: 'The title of the video.'
     },
     duration: {
       type: GraphQLInt,
-      description: 'The duration of the video(in seconds)'
+      description: 'The duration of the video (in seconds).'
     },
     released: {
       type: GraphQLBoolean,
-      description: 'Whether or not the video has been released'
+      description: 'Whether or not the video has been released.'
     }
   },
   interfaces: [nodeInterface]
 })
-
 exports.videoType = videoType
+
+const { connectionType: VideoConnection } = connectionDefinitions({
+  nodeType: videoType,
+  connectionFields: () => ({
+    totalCount: {
+      type: GraphQLInt,
+      description: 'A count of the total number of objects in this connection.',
+      resolve: connection => {
+        return connection.edges.length
+      }
+    }
+  })
+})
 
 const queryType = new GraphQLObjectType({
   name: 'QueryType',
-  description: 'The root query type',
+  description: 'The root query type.',
   fields: {
     node: nodeField,
     videos: {
-      type: new GraphQLList(videoType),
-      resolve: getVideos
+      type: VideoConnection,
+      args: connectionArgs,
+      resolve: (_, args) => connectionFromPromisedArray(
+        getVideos(),
+        args
+      )
     },
     video: {
       type: videoType,
       args: {
         id: {
           type: new GraphQLNonNull(GraphQLID),
-          descrption: 'The ID of the video'
+          description: 'The id of the video.'
         }
       },
-      resolve: (_, args) => {
-        return getVideoById(args.id)
-      }
+      resolve: (_, args) => getVideoById(args.id)
     }
   }
 })
 
-const videoInputType = new GraphQLInputObjectType({
-  name: 'VideoInput',
-  fields: {
+const videoMutation = mutationWithClientMutationId({
+  name: 'AddVideo',
+  inputFields: {
     title: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'The title of the video'
+      description: 'The title of the video.'
     },
     duration: {
       type: new GraphQLNonNull(GraphQLInt),
-      descrption: 'The duration of the video(in seconds)'
+      description: 'The duration of the video (in seconds).'
     },
-    realeased: {
+    released: {
       type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Wether or not the video is released'
+      description: 'Whether or not the video is released.'
     }
-  }
+  },
+  outputFields: {
+    video: {
+      type: videoType
+    }
+  },
+  mutateAndGetPayload: (args) => new Promise((resolve, reject) => {
+    Promise.resolve(createVideo(args))
+      .then((video) => resolve({ video }))
+      .catch(reject)
+  })
 })
 
 const mutationType = new GraphQLObjectType({
   name: 'Mutation',
-  description: 'The root Mutation type',
+  description: 'The root Mutation type.',
   fields: {
-    createVideo: {
-      type: videoType,
-      args: {
-        video: {
-          type: new GraphQLNonNull(videoInputType)
-        }
-      },
-      resolve: (_, args) => createVideo(args.video)
-    }
+    createVideo: videoMutation
   }
 })
 
@@ -113,4 +132,6 @@ server.use('/graphql', graphqlHTTP({
   graphiql: true
 }))
 
-server.listen(PORT, () => console.log(`Listening on port ${PORT}`))
+server.listen(PORT, () => {
+  console.log(`Listening on http://localhost:${PORT}`)
+})
