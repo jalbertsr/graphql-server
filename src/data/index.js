@@ -14,9 +14,20 @@ const videoB = {
 }
 const videos = [videoA, videoB]
 
-const getVideoById = id => new Promise(resolve => {
-  const [video] = videos.filter(video => video.id === id)
-  resolve(video)
-})
-
-module.exports = getVideoById
+module.exports = {
+  getVideoById: id => new Promise(resolve => {
+    const [video] = videos.filter(video => video.id === id)
+    resolve(video)
+  }),
+  getVideos: () => new Promise(resolve => resolve(videos)),
+  createVideo: ({ title, duration, released }) => {
+    const video = {
+      id: Buffer.from(title, 'utf-8').toString('base64'),
+      title,
+      duration,
+      released
+    }
+    videos.push(video)
+    return video
+  }
+}

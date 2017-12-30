@@ -5,13 +5,15 @@ const graphqlHTTP = require('express-graphql')
 const {
   GraphQLSchema,
   GraphQLObjectType,
+  GraphQLList,
+  GraphQLNonNull,
   GraphQLString,
   GraphQLInt,
   GraphQLBoolean,
   GraphQLID
 } = require('graphql')
 
-const getVideoById = require('./src/data')
+const utils = require('./src/data')
 
 const PORT = process.env.PORT || 3000
 
@@ -35,7 +37,7 @@ const videoType = new GraphQLObjectType({
     },
     watched: {
       type: GraphQLBoolean,
-      descrption: 'Whether or not the video has been watched'
+      description: 'Whether or not the video has been watched'
     }
   }
 })
@@ -44,23 +46,53 @@ const queryType = new GraphQLObjectType({
   name: 'QueryType',
   desscription: 'The root query type',
   fields: {
+    videos: {
+      type: new GraphQLList(videoType),
+      resolve: utils.getVideos
+    },
     video: {
       type: videoType,
       args: {
         id: {
-          type: GraphQLID,
+          type: new GraphQLNonNull(GraphQLID),
           descrption: 'The ID of the video'
         }
       },
       resolve: (_, args) => {
-        return getVideoById(args.id)
+        return utils.getVideoById(args.id)
       }
     }
   }
 })
 
+const mutationType = new GraphQLObjectType({
+  name: 'Mutation',
+  description: 'The root Mutation type',
+  fields: {
+    createVideo: {
+      type: videoType,
+      args: {
+        title: {
+          type: new GraphQLNonNull(GraphQLString),
+          description: 'The title of the video'
+        },
+        duration: {
+          type: new GraphQLNonNull(GraphQLInt),
+          descrption: 'The duration of the video(in seconds)'
+        },
+        realeased: {
+          type: new GraphQLNonNull(GraphQLBoolean),
+          description: 'Wether or not the video is released'
+        }
+      },
+      resolve: (_, args) => utils.createVideo(args)
+    }
+  }
+})
+
 const schema = new GraphQLSchema({
-  query: queryType
+  query: queryType,
+  mutation: mutationType
 })
 
 server.use('/graphql', graphqlHTTP({
